@@ -1,5 +1,13 @@
 import './App.css';
-import { auth } from './firebase/init';
+import { auth, database } from './firebase/init';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -11,6 +19,70 @@ import React from 'react';
 function App() {
   const [user, setUser] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [posts, setPosts] = React.useState([]);
+
+  const fetchPosts = React.useCallback(async () => {
+    try {
+      const data = await getDocs(collection(database, 'posts'));
+      setPosts(
+        data.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }))
+      );
+    } catch (error) {
+      console.error('Error getting posts:', error);
+    }
+  }, []);
+
+  async function createPost() {
+    if (!user) {
+      console.error('User must be signed in to create a post.');
+      return;
+    }
+
+    try {
+      await addDoc(collection(database, 'posts'), {
+        title: 'My Post',
+        content: 'This is the content of my post.',
+        author: user.uid,
+        createdAt: new Date(),
+      });
+      console.log('Post created successfully.');
+      await fetchPosts();
+    } catch (error) {
+      console.error('Error creating post:', error);
+    }
+  }
+
+  async function updatePost(postId) {
+    if (!user) {
+      console.error('User must be signed in to update a post.');
+      return;
+    }
+
+    try {
+      const postRef = doc(database, 'posts', postId);
+      await updateDoc(postRef, { title: 'Updated Title' });
+      console.log('Post updated successfully.');
+      await fetchPosts();
+    } catch (error) {
+      console.error('Error updating post:', error);
+    }
+  }
+
+  async function deletePost(postId) {
+    if (!user) {
+      console.error('User must be signed in to delete a post.');
+      return;
+    }
+
+    try {
+      const postRef = doc(database, 'posts', postId);
+      await deleteDoc(postRef);
+      console.log('Post deleted successfully.');
+      await fetchPosts();
+    } catch (error) {
+      console.error('Error deleting post:', error);
+    }
+  }
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -20,17 +92,37 @@ function App() {
     return unsubscribe;
   }, []);
 
-  const register = () =>
-    createUserWithEmailAndPassword(auth, 'test@example.com', 'password123')
-      .catch((error) => console.error('Error registering user:', error));
+  React.useEffect(() => {
+    if (user) {
+      fetchPosts();
+    } else {
+      setPosts([]);
+    }
+  }, [user, fetchPosts]);
 
-  const signIn = () =>
-    signInWithEmailAndPassword(auth, 'test@example.com', 'password123')
-      .catch((error) => console.error('Error signing in user:', error));
+  const register = async () => {
+    try {
+      await createUserWithEmailAndPassword(auth, 'test@example.com', 'password123');
+    } catch (error) {
+      console.error('Error registering user:', error);
+    }
+  };
 
-  const logout = () =>
-    signOut(auth)
-      .catch((error) => console.error('Error signing out user:', error));
+  const signIn = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, 'test@example.com', 'password123');
+    } catch (error) {
+      console.error('Error signing in user:', error);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Error signing out user:', error);
+    }
+  };
 
   if (loading) return <p>Loading...</p>;
 
@@ -40,6 +132,17 @@ function App() {
       <button onClick={register}>Register</button>
       <button onClick={signIn}>Sign In</button>
       <button onClick={logout}>Logout</button>
+      <button onClick={createPost}>Create Post</button>
+
+      <ul>
+        {posts.map((post) => (
+          <li key={post.id}>
+            <strong>{post.title}</strong>: {post.content}{' '}
+            <button onClick={() => updatePost(post.id)}>Update</button>
+            <button onClick={() => deletePost(post.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
