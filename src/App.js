@@ -7,6 +7,8 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  query,
+  where
 } from 'firebase/firestore';
 import {
   createUserWithEmailAndPassword,
@@ -44,6 +46,7 @@ function App() {
         content: 'This is the content of my post.',
         author: user.uid,
         createdAt: new Date(),
+        uid: user.uid,
       });
       console.log('Post created successfully.');
       await fetchPosts();
@@ -81,6 +84,27 @@ function App() {
       await fetchPosts();
     } catch (error) {
       console.error('Error deleting post:', error);
+    }
+  }
+
+  async function getPostById(postId) {
+    try {
+      const postRef = doc(database, 'posts', postId);
+      const snapshot = await getDocs(postRef);
+      return snapshot.data();
+    } catch (error) {
+      console.error('Error getting post:', error);
+    }
+  }
+
+  async function getPostByUid() {
+    try {
+      const postsRef = collection(database, 'posts');
+      const q = query(postsRef, where('uid', '==', user.uid));
+      const data = await getDocs(q);
+      return data.docs.map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+    } catch (error) {
+      console.error('Error getting posts by UID:', error);
     }
   }
 
@@ -133,6 +157,8 @@ function App() {
       <button onClick={signIn}>Sign In</button>
       <button onClick={logout}>Logout</button>
       <button onClick={createPost}>Create Post</button>
+      <button onClick={() => getPostById('post-id')}>Fetch Post</button>
+      <button onClick={getPostByUid}>Fetch My Posts</button>
 
       <ul>
         {posts.map((post) => (
